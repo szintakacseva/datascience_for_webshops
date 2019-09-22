@@ -1,0 +1,925 @@
+---
+title: 'Client session analysis '
+params:
+  prefix: pref
+  clientid: 41628
+  Year: 2018
+  Month: 2017-06
+  startMonth: 2017-09
+  endMonth: 2017-12
+  currency: SEK
+  to_divide: 20000
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 2
+    number_sections: true
+  html_document: default
+  word_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message =  FALSE, results = TRUE )
+options(xtable.comment = FALSE)
+```
+
+```{r load-packages, message=FALSE, echo=FALSE, warning=FALSE}
+if(!require(knitr)){install.packages("knitr")}
+if(!require(dplyr)){install.packages("dplyr")}
+if(!require(ggplot2)){install.packages("ggplot2")}
+if(!require(lubridate)){install.packages("lubridate")}
+if(!require(scales)){install.packages("scales")}
+if(!require(tidyr)){install.packages("tidyr")}
+#if(!require(gridExtra)){install.packages("gridExtra")}
+if(!require(cowplot)){install.packages("cowplot")}
+if(!require(grid)){install.packages("grid")}
+if(!require(xtable)){install.packages("xtable")}
+if(!require(reshape2)){install.packages("reshape2")}
+if(!require(tibble)){install.packages("tibble")}
+
+```
+
+```{r - utility functions}
+source('../utils/functions.R')
+
+```
+
+```{r - required csv}
+#weekdaily_yqm_status.csv
+
+```
+
+```{r - global settings}
+execute <- TRUE
+maxnrofmonth <- 4
+status_levels <- c('A', 'O', 'Q', 'R')
+colors <- c("total" = "blue", "A" = "#CC3333", "O" = "#009E73", "R" = "#56B4E9", "Q" = "#CC79A7")
+colors_browser <- c("Abandonments" = "#CC3333", "Orders" = "#009E73", "Onsites" = "#56B4E9", "Emails" = "#CC79A7")
+weekday_levels <- c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+long_weekday_levels <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+weekday_colors <- c("black", "black", "black", "black", "black", "red", "red")
+valueofsales_labels <- c("Weekday", "Direct sales", "Onsite recoveries")
+valueofsales_caption <- c("Value of direct sales and onsite recoverie")
+avgofsales_caption <- c("Average value of direct sales and onsite recoveries")
+yearly_mm_caption <- c("Min, max sessiontimes for weekdays on yearly basis")
+yearly_mm_colnames <- c("", "status", "Min", "Max")
+yearly_avg_caption <- c("Average sessiontimes for weekdays on yearly basis")
+yearly_avg_colnames <- c("", "status", "Avg")
+browser_caption <- c("Desktop, mobile browser  traffic for the past 30 days")
+browser_caption_summary <- c("Desktop, mobile browser summary on traffic for the past 30 days")
+browser_caption_freq <- c("Percentage of desktop, mobile browser  traffic for the past 30 days")
+browser_colnames <- c("Desktop", "Mobile")
+browser_colnames_orders <- c("Traffic","Abandonments", "Orders", "Onsites", "Emails")
+
+```
+\newpage
+
+# Sessiontimes analysis
+
+**Sessiontime summary for clientid = `r params$clientid`**
+
+```{r - title parameters, include=FALSE}
+vtitle1.0 = paste("Session times (max, avg, min)")
+vsubtitle1.0 = paste(" Client:", params$clientid, "\n",  "Year: ",params$Year)
+
+vtitle1.1="Average Session times on monthly and quarterly basis"
+vsubtitle1.1 = paste(" Client:", params$clientid, "\n",  "Year: ",params$Year)
+
+vtitle2 = "Direct sales and Onsite recoveries "
+vsubtitle2 = paste(" Client: ",params$clientid, "\n",  "Year: ",params$Year, "\n", "Currency: ",params$currency)
+vtitle5 = paste("Desktop, mobile browser traffic for the past 30 days")
+vsubtitle51 = paste("Summary for desktop, mobile browser traffic")
+vsubtitle52 = paste("Daily trends for desktop, mobile browser traffic")
+
+```
+
+
+
+
+`r vtitle1.0`  
+`r vsubtitle1.0`  
+
+
+```{r - industry temp file, eval=FALSE, include=FALSE}
+csvfilepath <- paste("../csv", "/",  "industry.csv", sep = "")
+d_industry <- read.csv("industry.csv", header=TRUE, sep=";")
+```
+
+```{r - load-csv}
+csvfilepath <- paste("../csv", "/",params$prefix,  "weekdaily_yqm_status.csv", sep = "")
+d_status <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+
+d_status$clientid <- factor(d_status$clientid)
+d_status$Year <- factor(d_status$Year)
+d_status$Quarter <- factor(d_status$Quarter)
+
+#order by weekday
+d_status$AbrWeekday <- factor(d_status$AbrWeekday, levels= weekday_levels)
+
+```
+
+
+```{r - count status}
+d_count_status <- d_status  %>%
+  filter(clientid == params$clientid ) %>%
+  group_by(status) %>%
+  summarise( NrOfTransactions  = sum(CountOfSessions))
+
+#kable(head(d_count_status))
+```
+
+
+```{r - load extreme sessiontimes csv}
+#csvfilepath <- paste("../csv", "/",params$prefix,  "extreme_sessiontimes.csv", sep = "")
+#d_extreme_sessiontimes <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+#d_extreme_sessiontimes$clientid <- factor(d_extreme_sessiontimes$clientid)
+
+```
+
+
+```{r - extrem values}
+#d_extreme_sessiontimes <- d_extreme_sessiontimes  %>%
+#  filter(clientid == params$clientid )
+
+#kable(head(d_extreme_sessiontimes, 20))
+
+```
+
+
+
+```{r - yearly}
+d_status_yearly <- d_status %>%
+  select(everything()) %>% 
+  filter(clientid == params$clientid, Year == params$Year, currency == params$currency) %>%
+  group_by(status, Weekday, AbrWeekday) %>%
+  summarise(AvgSessiontime =  round(mean(AvgSessionTime),0), 
+            MinSessiontime = round(min(MinSessionTime),0), 
+            MaxSessiontime = round(max(MaxSessionTime),0),
+            total = sum(CountOfSessions))
+
+#total nr of transactions as per status
+d_status_yearly_total <- d_status_yearly %>%
+  select(everything()) %>% 
+  group_by(status) %>%
+  summarise(total = sum(total))
+
+```
+
+
+
+
+```{r - gather yearly min, max, avg}
+gather_d_status_yearly <- d_status_yearly %>% gather(Sessiontimes, Duration, -status,-Weekday, -AbrWeekday, -total)
+
+gather_d_status_yearly$Sessiontimes <- as.factor(gather_d_status_yearly$Sessiontimes)
+
+```
+
+
+```{r - yearly plot 1 min, max, avg}
+# First plot
+p_year1 <- ggplot(gather_d_status_yearly, aes(x = AbrWeekday, y = Duration))+ 
+  geom_line(aes(x = as.numeric(AbrWeekday), y = Duration, color=factor(Sessiontimes)),  size = 1.2)+
+  labs(title = "",
+       subtitle = "",
+       x = "", 
+       y = "Duration in seconds")+
+  
+  scale_color_discrete(breaks=c("MaxSessiontime","AvgSessiontime","MinSessiontime"))+
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7), labels = weekday_levels) +
+  scale_y_continuous(labels = scales::comma) +
+  
+  theme(
+       axis.title.y = element_text(size = 8),
+       legend.title = element_blank(),
+       legend.position = "bottom",
+       legend.box.margin = unit(c(0, 0, 0, 0), "mm"),
+       legend.box.spacing = unit(c(0, 0, 0, 0), "mm"),
+       legend.key.height = unit(0.1, "mm"),
+       axis.text.x = element_blank(),
+       axis.text.y = element_text(face = "bold", size = 7),
+       axis.ticks.x = element_line(color = weekday_colors),
+       legend.text = element_text(size = 7),
+       
+       strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+       strip.background = element_rect(fill="lightblue", colour="black", size=.2),
+       strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+       panel.spacing = unit(1, "lines"),
+       plot.margin = unit(c(0, 0, 0, 0), "cm"),
+       panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted")) +
+#facet_grid(. ~ status)
+facet_wrap( ~ status,nrow = 1)
+
+```
+
+```{r - gather yearly min, avg}
+gather_d_status_yearly_avg <- d_status_yearly %>% gather(Sessiontimes, Duration, -status,-Weekday, -AbrWeekday, -total, -MaxSessiontime)
+
+gather_d_status_yearly_avg$Sessiontimes <- as.factor(gather_d_status_yearly_avg$Sessiontimes)
+```
+
+```{r - yearly plot 1 min avg }
+p_year2 <- ggplot(gather_d_status_yearly_avg, aes(x = AbrWeekday, y = Duration))+ 
+  geom_line(aes(x = as.numeric(AbrWeekday), y = Duration, color=factor(Sessiontimes)),  size = 1.2)+
+  labs(title = "",
+       subtitle = "",
+       x = "", 
+       y = "Duration in seconds")+
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7), labels = weekday_levels) +
+  scale_y_continuous(labels = scales::comma) +
+  theme(
+       axis.title.y = element_text(size = 8),
+       legend.title = element_blank(),
+       legend.position = "none",
+       axis.text.x=element_text(angle=65,hjust=1,vjust=0.5, size = 6,face = "bold",
+       color = weekday_colors),
+       axis.text.y = element_text(face = "bold", size = 7),
+       axis.ticks.x = element_line(color = weekday_colors),
+       legend.text = element_blank(),
+       
+       strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+       strip.background = element_rect(fill="lightblue", colour="black", size=.2),
+strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+panel.spacing = unit(1, "lines"),
+plot.margin = unit(c(0, 0, 0, 0), "cm"),
+ panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted"))+
+#facet_grid(. ~ status)
+facet_wrap( ~ status,nrow = 1)
+  
+```
+
+```{r multiplot year 1}
+multiplot(p_year1, p_year2, cols = 1)
+
+```
+
+```{r - yearly table summary, results='asis', echo = FALSE, eval = TRUE, include = TRUE, message = FALSE, warning= FALSE}
+# ordering a dataframe according to a vector
+#d_status_yearly <- d_status_yearly[match(weekday_levels, d_status_yearly$AbrWeekday),]
+d_status_yearly_A <- d_status_yearly %>%
+  select(status, AbrWeekday, MinSessiontime, MaxSessiontime, AvgSessiontime) %>% 
+  filter(status == "A")
+d_status_yearly_O <- d_status_yearly %>%
+  select(status, AbrWeekday, MinSessiontime, MaxSessiontime, AvgSessiontime) %>% 
+  filter(status == "O")
+d_status_yearly_Q <- d_status_yearly %>%
+  select(status, AbrWeekday, MinSessiontime, MaxSessiontime, AvgSessiontime) %>% 
+  filter(status == "Q")
+d_status_yearly_R <- d_status_yearly %>%
+  select(status, AbrWeekday, MinSessiontime, MaxSessiontime, AvgSessiontime) %>% 
+  filter(status == "R")
+
+# ordering a dataframe according to a vector
+d_status_yearly_A <- d_status_yearly_A[match(weekday_levels, d_status_yearly_Q$AbrWeekday),]
+d_status_yearly_O <- d_status_yearly_O[match(weekday_levels, d_status_yearly_O$AbrWeekday),]
+d_status_yearly_Q <- d_status_yearly_Q[match(weekday_levels, d_status_yearly_Q$AbrWeekday),]
+d_status_yearly_R <- d_status_yearly_R[match(weekday_levels, d_status_yearly_R$AbrWeekday),]
+#d_status_yearly_A
+
+df_table <- cbind(d_status_yearly_A, d_status_yearly_O,  d_status_yearly_Q,  d_status_yearly_R)
+
+df_table <- df_table %>% 
+  ungroup() %>%
+  mutate(status = paste('A', '|','O', '|', 'Q','|', 'R'),
+         MinSessiontime = paste(MinSessiontime, MinSessiontime1,MinSessiontime2, MinSessiontime3, sep = '|'),
+         MaxSessiontime = paste(MaxSessiontime, MaxSessiontime1,MaxSessiontime2, MaxSessiontime3, sep = '|'),
+         AvgSessiontime = paste(AvgSessiontime, AvgSessiontime1,AvgSessiontime2, AvgSessiontime3, sep = '|')) %>%
+  select(Weekday, status,MinSessiontime, MaxSessiontime, AvgSessiontime ) 
+ 
+df_table_mm <- df_table %>%
+  select(Weekday, status,MinSessiontime, MaxSessiontime )
+
+#renaming back the column to 'Month' names
+colnames(df_table_mm) <- yearly_mm_colnames
+
+print(xtable::xtable(df_table_mm, type = "html", caption =  yearly_mm_caption), include.rownames = FALSE, xtable.comment = FALSE)
+#kable(df_table_mm, knit.table.format = "html", row.names = FALSE)
+
+```
+
+
+```{r - yearly plot 2}
+y_position <- mean(d_status_yearly$AvgSessiontime)
+
+p1 <- ggplot(d_status_yearly, aes(x = AbrWeekday,y = AvgSessiontime, fill = status)) +
+  geom_bar(aes(x = as.numeric(AbrWeekday)), stat='identity', position = "dodge", width = 0.8) +
+  #average sessiontimes as text
+  #geom_text(data=d_status_yearly_total, 
+  #         aes(x=3, y= y_position, label = total),
+  #          color='black', fontface = "bold") +
+  
+  labs( title = "Average Session times on Yearly basis", 
+        subtitle = paste(" Client:", params$clientid, "\n",  "Year: ",params$Year),
+        x = "", 
+        y = "Duration in seconds", 
+        caption = "(in the middle - the number of sessions for A, O, P, R statuses)")+
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7), labels = c("Mon","Tue","Wed","Thu","Fri","Sat", "Sun")) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_fill_manual(values=colors)+
+  theme(axis.text.x=element_text(angle=65,hjust=1,vjust=0.5, size = 7,
+       color = weekday_colors),
+      axis.ticks.x = element_line(color = weekday_colors), 
+      legend.position = "bottom",
+      legend.direction =  "horizontal",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 6),
+      strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+        strip.background = element_rect(fill="lightblue", colour="black",size=.1),
+        axis.text.y=element_text(hjust=1,vjust=0.5, size = 10),
+        strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+      panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted"),
+      plot.title = element_text(hjust = 0.5),
+  
+      plot.caption = element_text(hjust = 1, size = 8, colour = "gray", face = "italic"))
+
+p1
+```
+
+```{r - table summary for yearly average session times, results='asis', echo = FALSE, eval = TRUE, include = TRUE, message = FALSE, warning= FALSE}
+df_table_avg <- df_table %>%
+  select(Weekday, status,AvgSessiontime )
+
+#renaming back the column to 'Month' names
+colnames(df_table_avg) <- yearly_avg_colnames
+
+print(xtable::xtable(df_table_avg, type = "html", caption =  yearly_avg_caption), include.rownames = FALSE, xtable.comment = FALSE)
+
+#kable(df_table_a, knit.table.format = "html", row.names = FALSE)
+
+```
+
+\newpage     
+**`r vtitle1.1`**       
+**`r vsubtitle1.1`**          
+
+```{r - quarterly data}
+# for the missing status, quarter, AbrWeekday 0 is added, not to slip the faceting 
+d_status_quarterly <- d_status %>%
+  select(everything()) %>% 
+  filter(clientid == params$clientid, Year == params$Year, currency == params$currency) %>%
+  group_by(status, Quarter, AbrWeekday) %>%
+  summarise(AvgSessiontime =  round(mean(AvgSessionTime),0), 
+            MinSessiontime = min(MinSessionTime), 
+            MaxSessiontime = max(MaxSessionTime),
+            total = sum(CountOfSessions))
+
+d_status_quarterly$status <- factor(d_status_quarterly$status, levels = status_levels)
+
+# contingency table (freq) on status, Quarter, Abrweekday
+qt <- as.data.frame(with (d_status_quarterly, table(status, Quarter, AbrWeekday)))
+
+# df for missing data
+qt_zero <- qt %>%
+  filter(Freq == 0) %>%
+  mutate(AvgSessiontime = 0,
+         MinSessiontime = 0,
+         MaxSessiontime = 0,
+         total = 0) %>%
+  select(everything(), -Freq)
+
+# bind rows of the orig df with zeros
+d_status_quarterly <- bind_rows(d_status_quarterly, qt_zero)
+```
+
+
+```{r - quarterly plot}
+title="Average Session times on Quarterly basis"
+subtitle = paste(" Client:", params$clientid, "\n",  "Year: ",params$Year)
+x = "Weekday"
+y = "Duration in seconds"
+
+p2 <- ggplot(d_status_quarterly, aes(x = AbrWeekday,y = AvgSessiontime,fill= status)) +
+  geom_bar(aes(x = as.numeric(AbrWeekday)), stat='identity', position = "dodge", width = 0.8) +
+  labs(title="", 
+       subtitle = "",
+       x = "", 
+       y = "") +
+  scale_fill_manual(values=colors)+
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7), labels = weekday_levels) +
+  scale_y_continuous(labels = scales::comma) +
+  
+  theme(axis.text.x=element_text(angle=65,hjust=1,vjust=0.5, size = 6, face = "bold",
+       color = weekday_colors),
+      axis.ticks.x = element_line(color = weekday_colors), 
+      legend.position = "none",
+      legend.direction =  "horizontal",
+      legend.title = element_blank(),
+      legend.text = element_text(size = 6),
+      strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+      strip.background = element_rect(fill="lightblue", colour="black",size=.1),
+      axis.text.y=element_text(hjust=1,vjust=0.5, size = 5.5, face = "bold"),
+      strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+      panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted")
+      )+
+  facet_wrap(Quarter ~ status ,nrow = 4, labeller = label_wrap_gen(multi_line=FALSE), shrink = TRUE)
+  
+```
+
+
+```{r - monthly data}
+d_status_monthly <- d_status %>%
+  select(everything()) %>% 
+  filter(clientid == params$clientid, Year == params$Year, currency == params$currency ) %>%
+  group_by(status, Month, Weekday, AbrWeekday) %>%
+  summarise(AvgSessiontime =  round(mean(AvgSessionTime),0), 
+            MinSessiontime = round(min(MinSessionTime),0), 
+            MaxSessiontime = round(max(MaxSessionTime),0),
+            total = sum(CountOfSessions))
+
+```
+
+```{r - monthly plot}
+title="Average Session times on Monthly basis" 
+subtitle = paste(" Client:", params$clientid, "\n",  "Year: ",params$Year)
+
+x = "Weekday"
+y = "Duration in seconds"
+
+y_position <- mean(d_status_monthly$AvgSessiontime)
+
+p3 <- ggplot(d_status_monthly, aes(x = AbrWeekday,y = AvgSessiontime, fill = status)) +
+  geom_bar(aes(x = as.numeric(AbrWeekday)), stat='identity', position = "dodge", width = 0.7) +
+  labs( title="", 
+        subtitle = "",
+        x = "", 
+        y = "")+
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7), labels = c("Mon","","","Thu","","", "Sun")) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_fill_manual(values=colors)+
+  theme(axis.text.x=element_blank(),
+       axis.ticks.x = element_line(color = weekday_colors), 
+       legend.position = "none",
+  
+       strip.text = element_text(face = "bold", size=5.5,lineheight=5.0),
+       strip.background = element_rect(fill="lightblue", colour="black",size=.1),
+       axis.text.y=element_text(hjust=1,vjust=0.5, size = 5.5, face = "bold"),
+       strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+       panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted")
+        )+
+  facet_grid( status ~ Month, space="free_y")
+ 
+```
+
+```{r}
+
+  cowplot::ggdraw() +
+  cowplot::draw_plot(p2, x = 0, y = 0, width = 1, height = .64) +
+  cowplot::draw_plot(p3, x = 0, y = .5, width = 1, height = .63)
+  #cowplot::draw_plot_label(label = c("Yearly", "Quarterly", "Monthly"), size = 12, x = c(0, 0.3, 0), y = c(1, 1,.55))
+
+#multiplot(p3, p2, cols = 1)
+
+```
+
+# Value of direct sales, onsite recoveries on monthly and weekdayly basis
+
+
+
+```{r data-weekdaily-month-load-csv}
+csvfilepath <- paste("../csv", "/",params$prefix,  "weekdaily_month.csv", sep = "")
+d_wdm <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+
+d_wdm$clientid <- as.factor(d_wdm$clientid)
+d_wdm$Year <- as.factor(d_wdm$Year)
+
+d_wdm$Weekday <- factor(d_wdm$Weekday, levels = long_weekday_levels)
+
+```
+
+```{r weekdaily months, echo = FALSE, message = FALSE, results = TRUE}
+d_client_wdm <- d_wdm %>%
+  select(clientid, currency, Year, Month, Weekday, ValueOfDirectSales, AvgOfDirectSales, ValueOfOnsiteRecoveries, AvgOfOnsiteRecoveries) %>%
+  filter(clientid==params$clientid, Year == params$Year, currency == params$currency)%>%
+  arrange(desc(ValueOfOnsiteRecoveries))
+
+#head(d_client_wdm,10)
+#tail(d_client_wdm,10)
+```
+
+
+```{r - value and average separation in two tables }
+g_d_client_wdm <- d_client_wdm %>% gather(Sales, Value, -clientid, -currency, -Year, -Month, -Weekday)
+
+g_d_client_wdm_sum <- g_d_client_wdm%>%
+   filter(!Sales %in% c("AvgOfDirectSales", "AvgOfOnsiteRecoveries"))
+
+g_d_client_wdm_avg <- g_d_client_wdm%>%
+   filter(Sales %in% c("AvgOfDirectSales", "AvgOfOnsiteRecoveries"))
+
+```
+
+
+```{r - direct sales vs Onsite recoveries}
+ggplot(g_d_client_wdm_sum, aes(x = as.numeric(Weekday), y = Value, fill = Sales)) +
+  geom_bar(stat='identity', width = 0.8)+
+  
+labs( title = vtitle2,
+      subtitle = vsubtitle2,
+      x = "", 
+      y = "Sales")+
+  scale_x_continuous(breaks = c(1,2,3,4,5,6,7), labels = weekday_levels) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_fill_manual(guide = "legend", labels =  c('direct sales', 'onsite recoveries'), values = c("skyblue", "royalblue"), name= '')+
+  
+  theme(axis.text.x=element_text(angle=65,hjust=1,vjust=0.5, size = 7, face = "bold",
+        color = weekday_colors),
+        axis.ticks.x = element_line(color = weekday_colors),
+        strip.text = element_text(face = "bold", size=6,lineheight=5.0),
+        strip.background = element_rect(colour = "black"),
+        legend.position = "bottom", 
+        legend.text = element_text(size = 7),
+        axis.text.y=element_text(hjust=1,vjust=0.5, size = 7, face = "bold"),
+        panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted"))+
+  facet_wrap(~ Month, nrow = row_number_faceting(g_d_client_wdm_sum))
+
+```
+
+
+```{r - section 2 table format, results='asis', echo = FALSE, eval = TRUE, include = TRUE, message = FALSE, warning= FALSE }
+
+table_wdm_sum <- weekday_month_recast(d_client_wdm, 'ValueOfDirectSales', 'ValueOfOnsiteRecoveries', maxnrofmonth)
+print(xtable::xtable(table_wdm_sum, type = "html", caption = valueofsales_caption), include.rownames = FALSE, xtable.comment = FALSE)
+
+```
+
+
+#Average value of direct sales, onsite recoveries on monthly and weekdayly basis
+
+```{r - avg direct sales vs Onsite recoveries}
+#TO DO - calculate the nr of months for proper faceting
+ggplot(g_d_client_wdm_avg, aes(x = as.numeric(Weekday), y = Value, fill = Sales)) +
+  geom_bar(stat='identity', position = "dodge", width = .6)+
+  
+labs( title = vtitle2,
+      subtitle = vsubtitle2,
+      x = "", 
+      y = "Sales average value")+
+  
+scale_x_continuous(breaks = c(1,2,3,4,5,6,7), labels = weekday_levels) +
+scale_y_continuous(labels = scales::comma) +
+scale_fill_manual(guide = "legend", labels =  c('direct sales', 'onsite recoveries'), values = c("skyblue", "royalblue"), name= '')+
+  
+  theme(axis.text.x=element_text(angle=65,hjust=1,vjust=0.5, size = 7, face = "bold",
+       color = weekday_colors),
+       axis.ticks.x = element_line(color = weekday_colors),
+       strip.text = element_text(face = "bold", size=6,lineheight=5.0),
+       strip.background = element_rect(colour = "black"),
+       legend.position = "bottom", 
+       legend.text = element_text(size = 7),
+       axis.text.y=element_text(hjust=1,vjust=0.5, size = 7, face = "bold"),
+       panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted"))+
+  facet_wrap(~ Month, nrow = row_number_faceting(g_d_client_wdm_avg$Month))
+
+```
+
+```{r - section 3 table format, results='asis', echo = FALSE, eval = TRUE, include = TRUE, message = FALSE, warning= FALSE }
+
+table_wdm_avg <- weekday_month_recast(d_client_wdm, 'AvgOfDirectSales', 'AvgOfOnsiteRecoveries', maxnrofmonth)
+print(xtable::xtable(table_wdm_avg, type = "html", caption = avgofsales_caption), include.rownames = FALSE, xtable.comment = FALSE)
+
+```
+\newpage
+# Customer intensity report
+
+## All status 
+
+```{r - average_json_per_minute}
+csvfilepath <- paste("../csv", "/",params$prefix,  "avg_json_per_minute.csv", sep = "")
+d_avg_json <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+
+#d_avg_json$clientid <- as.factor(d_avg_json$clientid)
+
+```
+
+```{r - df for intensity}
+d_avg_json_real <- d_avg_json %>%
+  select(everything()) %>%
+  filter(clientid == params$clientid, AvgNrOfJSONsPerMinute>0, maxdelta>=1, AvgNrOfJSONsPerMinute <= 20)%>%
+  arrange(desc(AvgNrOfJSONsPerMinute))
+
+# calculating summaries
+d_avg_json_summary <- d_avg_json_real %>%
+  select(everything()) %>%
+  summarise(AvgForClient = round(mean(AvgNrOfJSONsPerMinute),2),
+            MaxForClient = max(AvgNrOfJSONsPerMinute))
+
+#calculating the frequency
+d_avg_json_freq <- d_avg_json_real %>%
+  select(everything()) %>%
+  group_by(AvgNrOfJSONsPerMinute)%>%
+  summarise(FreqForClient = n())
+```
+
+
+```{r - customer intensity check the existence of dfs}
+# in case of empty dfs the next chunk is not executed
+dfs <- c(d_avg_json, d_avg_json_real, d_avg_json_summary, d_avg_json_freq)
+execute = isempty(dfs) 
+
+```
+
+
+```{r - histogram of avg nr of jsonns per minute, eval = execute, include = execute}
+ggplot(d_avg_json_real, aes(x = AvgNrOfJSONsPerMinute)) +
+  geom_bar(width=0.009)+
+  geom_vline(data=d_avg_json_summary, aes(xintercept=d_avg_json_summary$AvgForClient), color="blue") +
+  geom_text(data=d_avg_json_summary, 
+            aes(x= AvgForClient, y=max(d_avg_json_freq$FreqForClient)/2, label =     paste('client ', 'avg','=',AvgForClient)), color='blue', size = 4, angle=90, vjust=-0.4, hjust=0)+
+  geom_vline(data=d_avg_json_summary, aes(xintercept=d_avg_json_summary$AvgForClient+3), color="orange") +
+  geom_text(data=d_avg_json_summary, 
+            aes(x= AvgForClient+3, y=max(d_avg_json_freq$FreqForClient)/2, label =     paste('industry ', 'avg','=',AvgForClient+3)), color='orange', size = 4, angle=90, vjust=-0.4, hjust=0)+
+
+  labs( title = paste("Avg nr of JSONs per Minute for client ", params$clientid), 
+      x = "Avg Nr of jsons per minute", 
+      y = "Frequency")
+
+  
+```
+
+
+## On statuses ('A_', 'O', 'Q_', 'R_')
+
+```{r - avg json/min on status basis}
+csvfilepath <- paste("../csv", "/",params$prefix,  "avg_json_per_minute_with_status.csv", sep = "")
+d_avg_json_status <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+
+```
+
+```{r - prepare df for customer intensity on status }
+d_avg_json_status_real <- d_avg_json_status %>%
+  select(everything()) %>%
+  #filter(clientid == params$clientid)%>%
+  filter(clientid == params$clientid, AvgNrOfJSONsPerMinute>0, maxdelta>=1, AvgNrOfJSONsPerMinute <= 20)%>%
+  arrange(desc(AvgNrOfJSONsPerMinute))
+
+# calculating summary
+d_avg_json_status_summary <- d_avg_json_status_real %>%
+  select(everything()) %>%
+  group_by(status)%>%
+  summarise(AvgForClient = round(mean(AvgNrOfJSONsPerMinute),2),
+            MaxForClient = max(AvgNrOfJSONsPerMinute))
+# calculating frequency
+d_avg_json_status_freq <- d_avg_json_status_real %>%
+  select(everything()) %>%
+  group_by(status, AvgNrOfJSONsPerMinute)%>%
+  summarise(FreqForClient = n())
+```
+
+
+```{r - customer intensity status check the existence of dfs}
+# in case of empty dfs the next chunk is not executed
+dfs <- c(d_avg_json_status, d_avg_json_status_real, d_avg_json_status_summary, d_avg_json_freq)
+execute = isempty(dfs) 
+
+```
+
+```{r - histogram of avg nr of jsonns per minute on status basis, eval=execute, include = execute}
+ggplot(d_avg_json_status_real, aes(x = AvgNrOfJSONsPerMinute)) +
+  geom_bar(width=0.009)+
+  geom_vline(data=d_avg_json_status_summary, aes(xintercept=d_avg_json_status_summary$AvgForClient), color="blue") +
+  geom_text(data=d_avg_json_status_summary, 
+            aes(x= AvgForClient, y=max(d_avg_json_status_freq$FreqForClient)/3, label =     paste('client ', 'avg','=',AvgForClient)), color='blue', size = 3, angle=90, vjust=-0.4, hjust=0)+
+  geom_vline(data=d_avg_json_status_summary, aes(xintercept=d_avg_json_status_summary$AvgForClient+3), color="orange") +
+  geom_text(data=d_avg_json_status_summary, 
+            aes(x= AvgForClient+3, y=max(d_avg_json_status_freq$FreqForClient)/3, label =     paste('industry ', 'avg','=',AvgForClient+3)), color='orange', size = 2, angle=90, vjust=-0.4, hjust=0)+
+
+  labs( title = paste("Avg nr of JSONs per Minute for client ", params$clientid), 
+      x = "Avg Nr of jsons per minute", 
+      y = "Frequency")+
+  facet_wrap( ~ status,nrow = 2)
+
+```
+\newpage
+#Average daily traffic for the past seven days
+
+
+```{r - load-csv-past7days}
+csvfilepath <- paste("../csv", "/",params$prefix,  "hourly_trafic_7days.csv", sep = "")
+d_hourly_traffic <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+d_hourly_traffic$clientid <- factor(d_hourly_traffic$clientid)
+d_hourly_traffic$Hour <- factor(d_hourly_traffic$Hour)
+
+```
+
+
+```{r - all traffic status}
+d_hourly_traffic_sums <- d_hourly_traffic %>%
+  select(everything()) %>% 
+  filter(clientid == params$clientid, currency == params$currency) %>%
+  group_by(Hour) %>%
+  summarise(A =  round(sum(CountOfAbandonments),0), 
+            O = round(sum(CountOfDirectSales),0), 
+            Q =  round(sum(CountOfOnsiteRecoveries),0), 
+            R = round(sum(CountOfEmails),0),
+            total = sum(round(sum(CountOfAbandonments),0) +
+                        round(sum(CountOfDirectSales),0) +
+                        round(sum(CountOfOnsiteRecoveries),0) +
+                        round(sum(CountOfEmails),0)  
+                          ))
+```
+
+
+```{r - gather past 7 days all}
+#all
+gather_d_hourly_traffic_sums <- d_hourly_traffic_sums %>% 
+  gather(Status, Traffic, -Hour)
+
+```
+
+
+```{r - all- past 7 days plot}
+draw_7daysplot <- function(data, title, colors) {
+  ggplot(data, aes(x = Hour, y = Traffic))+
+  #ggplot(gather_d_hourly_traffic_sums, aes(x = Hour, y = Traffic))+ 
+  geom_line(aes(x = as.numeric(Hour), y = Traffic, color=factor(Status)),  size = 1.2)+
+  labs(title = title, 
+       subtitle = "",
+       x = "Hour", 
+       y = "Traffic")+
+
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = c(0:24)) +
+  scale_color_manual(values=colors)+
+  theme(legend.title = element_blank(),
+       legend.position = "bottom",
+       axis.text.x=element_text(angle=0,hjust=1,vjust=0.5, size = 7),
+       legend.text = element_text(size = 8),
+       
+       strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+       strip.background = element_rect(fill="lightblue", colour="black",
+size=.2),
+strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+panel.spacing = unit(1, "lines"),
+panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted"))
+  
+}
+
+#All
+title <- paste("7 days traffic for client ", params$clientid)
+subtitle = paste(" Client: ",params$clientid, "\n",  "Year: ",params$Year, "\n", "Currency: ",params$currency)
+x = ""
+y = ""
+p1 = draw_7daysplot(gather_d_hourly_traffic_sums, "", colors)
+p2 = draw_7daysplot(subset(gather_d_hourly_traffic_sums, Status=='A'), title, colors["A"])
+p3 = draw_7daysplot(subset(gather_d_hourly_traffic_sums, Status %in% c('O', 'R', 'Q')), "", colors[c("O", "R", "Q")])
+#p1
+#p2
+#p3
+
+multiplot(p2, p1, p3, cols = 2)
+  
+```
+\newpage
+
+# `r vtitle5` 
+## `r vsubtitle51`
+
+```{r - load browser type}
+csvfilepath <- paste("../csv", "/",params$prefix,  "browser_traffic.csv", sep = "")
+df_browser_traffic <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+df_browser_traffic$clientid <- factor(df_browser_traffic$clientid)
+
+```
+
+```{r - high level browser summary}
+df_browser_summary <- df_browser_traffic %>%
+  group_by(browsertype)%>%
+  summarise( Transactions  = sum(CountOfSessions),
+             Abandonments = sum(CountOfAbandonments),
+             Orders = sum(CountOfDirectSales),
+             Onsites = sum(CountOfOnsiteRecoveries),
+             Emails = sum(CountOfEmails))
+
+#calculate frequency, percentage
+df_browser_freq <- data.frame(apply(select(df_browser_summary, 2:6), 2, function(x) x/sum(x)))
+#adding the 'browsertype' column to the df in the first place
+df_browser_freq <- add_column(df_browser_freq, browsertype = c("D", "M"), .before = 1)
+```
+
+
+```{r gather for plotting summaries}
+gather_browser_summary <- df_browser_summary %>%
+  gather(Status, Traffic,-browsertype) 
+
+gather_browser_freq <- df_browser_freq %>%
+  gather(Status, Traffic,-browsertype) 
+
+gather_browser_orders <- gather_browser_summary %>%
+  filter (Status != "Transactions")
+
+gather_browser_all <- gather_browser_summary %>%
+  filter (Status == "Transactions")
+
+gather_browser_orders$Status <- factor(gather_browser_orders$Status, levels= c("Abandonments", 
+    "Orders", "Onsites", "Emails"))
+
+```
+
+```{r - plot browser summary}
+pba <- ggplot(gather_browser_all, aes( x = "", y = Traffic, fill = as.factor(browsertype))) +
+  geom_bar(stat = "identity", position = "dodge", width = .4)+
+  labs(title = "", 
+       subtitle = "",
+       x = "", 
+       y = "Traffic")+
+  scale_fill_manual(label = c("Device", "Mobile"), values = c("blue", "red")) +
+  theme(legend.title = element_blank(),
+       legend.position = "bottom",
+       axis.text.x=element_text(angle=0,hjust=1,vjust=0.5, size = 6),
+       legend.text = element_text(size = 8),
+       strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+       strip.background = element_rect(fill="lightblue", colour="black",
+size=.2),
+strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+panel.spacing = unit(1, "lines"),
+panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted"))
+   
+
+pbo <- ggplot(gather_browser_orders, aes( x = "", y = Traffic, fill = as.factor(Status))) +
+  geom_bar(stat = "identity", position = "dodge", width = .6)+
+  scale_fill_manual(values = colors_browser) +
+  labs(title = "", 
+       subtitle = "",
+       x = "", 
+       y = "")+
+  theme(legend.title = element_blank(),
+       legend.position = "bottom",
+       axis.text.x=element_text(angle=0,hjust=1,vjust=0.5, size = 6),
+       legend.text = element_text(size = 8),
+       strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+       strip.background = element_rect(fill="lightblue", colour="black",
+size=.2),
+strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+panel.spacing = unit(1, "lines"),
+panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted"))+
+   facet_wrap(~ browsertype)
+ 
+multiplot(pba, pbo, cols = 2)
+
+```
+
+
+```{r browser summary table, results='asis', echo = FALSE, eval = TRUE, include = TRUE, message = FALSE, warning= FALSE  }
+
+#renaming the new column names
+colnames(df_browser_summary) <- append(as.character(c("")),as.character(browser_colnames_orders))
+colnames(df_browser_freq) <- append(as.character(c("")), as.character(browser_colnames_orders))
+
+
+print(xtable::xtable(df_browser_summary, type = "html", caption = browser_caption_summary), include.rownames = FALSE, xtable.comment = FALSE)  
+print(xtable::xtable(df_browser_freq, type = "html", caption = browser_caption_freq), include.rownames = FALSE, xtable.comment = FALSE)
+
+
+```
+
+## `r vsubtitle52`
+
+```{r daily browser plot function}
+browser_plot <- function(data, vy_axis, vy_title, vlegend_position) {
+  ggplot(df_browser_traffic, aes(x = Day, y = vy_axis))+
+  geom_line(aes(x = as.numeric(Day), y = vy_axis, color=factor(browsertype)),  size = 1.2)+
+  labs(title = "", 
+       subtitle = "",
+       x = "", 
+       y = vy_title)+
+  scale_x_continuous(breaks = c(0:30)) +
+  scale_color_manual(label = browser_colnames, values = c("blue", "red")) +
+  theme(legend.title = element_blank(),
+       legend.position = vlegend_position,
+       axis.text.x=element_text(angle=0,hjust=1,vjust=0.5, size = 6),
+       legend.text = element_text(size = 8),
+       strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+       strip.background = element_rect(fill="lightblue", colour="black",
+size=.2),
+strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+panel.spacing = unit(1, "lines"),
+panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted"))
+  #facet_grid(Status ~ .)
+} 
+
+```
+
+```{r - multiplot for browsertype}
+bp1 <- browser_plot(df_browser_traffic, df_browser_traffic$CountOfAbandonments, "A","none")
+bp2 <- browser_plot(df_browser_traffic, df_browser_traffic$CountOfDirectSales, "O","none")
+bp3 <- browser_plot(df_browser_traffic, df_browser_traffic$CountOfOnsiteRecoveries, "Q", "none")
+bp4 <- browser_plot(df_browser_traffic, df_browser_traffic$CountOfEmails, "R","bottom")
+
+multiplot(bp1, bp3, bp2, bp4,cols = 2)
+```
+
+```{r create summary table, results='asis', echo = FALSE, eval = TRUE, include = TRUE, message = FALSE, warning= FALSE}
+table_browser_traffic <- df_browser_traffic %>%
+  select(Day, browsertype, CountOfAbandonments,CountOfDirectSales,CountOfOnsiteRecoveries, CountOfEmails)%>%
+  recast( Day ~ browsertype  + variable)%>%
+  unite(col1, 2:5, sep = "|", remove = TRUE)%>%
+  unite(col2, 3:6, sep = "|", remove = TRUE)
+
+#renaming the new column names
+colnames(table_browser_traffic) <- append(as.character(c("")), as.character(browser_colnames))
+
+print(xtable::xtable(table_browser_traffic, type = "html", caption = browser_caption), include.rownames = FALSE, xtable.comment = FALSE)  
+
+```
+

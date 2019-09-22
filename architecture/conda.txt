@@ -1,0 +1,29 @@
+# creates conda library for cowplot and kableextra R packages
+General steps:
+conda install conda-build
+conda skeleton cran <something_on_cran>
+conda build r-<something_on_cran_lowercased>
+conda install -c local r-<something_on_cran_lowercased>
+
+Libraries:
+cowplot
+kableextra
+
+0. conda config --add channels r
+
+1. install conda-build commands
+> conda install conda-build
+
+2. Building a conda R package
+> conda skeleton cran cowplot
+
+3. Uploading the package to my Anaconda account
+binstar upload /home/takacs/anaconda3/conda-bld/linux-64/r-cowplot-0.8.0-r3he0703ed_0.tar.bz2
+binstar upload /home/takacs/anaconda3/conda-bld/linux-64/r-kableextra-0.7.0-r3h2edec00_0.tar.bz2
+
+4. Everybody can install it
+conda install -c szintakacseva r-cowplot
+
+
+
+

@@ -1,0 +1,171 @@
+---
+title: "Session Analysis by Client"
+output:
+  html_document: default
+params:
+  prefix: pref
+  clientid: 23611
+  Year: 2017
+  Month: 2017-06
+  currency: NOK
+  to_divide: 2000
+graphics: yes  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, results = TRUE)
+```
+
+
+```{r load-packages}
+if(!require(dplyr)){install.packages("dplyr")}
+if(!require(ggplot2)){install.packages("ggplot2")}
+if(!require(lubridate)){install.packages("lubridate")}
+if(!require(tidyr)){install.packages("tidyr")}
+```
+
+
+```{r myfunctions}
+source('../utils/functions.R')
+
+```
+
+
+```{r - data-base-load-csv}
+csvfilepath <- paste("../csv", "/",params$prefix,  "daily.csv", sep = "")
+data_daily <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+
+data_daily <-setFields(data_daily)
+data_daily$Day <- ymd(data_daily$Day) #extra
+
+```
+
+```{r - filter by client}
+data_client <- data_daily %>%
+  select(everything()) %>% 
+  filter(clientid == params$clientid)
+  
+```
+
+
+```{r - daily sales trend}
+ggplot(data_client, aes(x = Day, y = ValueOfOnsiteRecoveries)) +
+  labs(title = paste("Daily sales trend", params$clientid) )+
+  geom_line()
+```
+
+```{r - daily stat of ValueOfOnsiteRecoveries, echo = FALSE,  message = TRUE, results = TRUE}
+data_client_stat <- data_client %>%
+  select(clientid, Day, CountOfOnsiteRecoveries, ValueOfOnsiteRecoveries) %>%
+  summarise(
+            avg = round(mean(as.numeric(ValueOfOnsiteRecoveries)),2), 
+            min = round(min(as.numeric(ValueOfOnsiteRecoveries)),2), 
+            max = round(max(as.numeric(ValueOfOnsiteRecoveries)),2),
+            median = round(median(as.numeric(ValueOfOnsiteRecoveries)),2),
+            sd = round(sd(as.numeric(ValueOfOnsiteRecoveries)),2)
+           )
+
+data_client_stat
+
+```
+
+
+```{r - peak days and bad days, results=TRUE, echo=FALSE, message=TRUE}
+data_client_pd <- data_client %>%
+  select(clientid, Day, CountOfOnsiteRecoveries, ValueOfOnsiteRecoveries) %>%
+  arrange(desc(ValueOfOnsiteRecoveries))
+
+head(data_client_pd,10)
+tail(data_client_pd,10)
+```
+
+
+```{r data-weekday-monthly-load-csv}
+csvfilepath <- paste("../csv", "/",params$prefix,  "weekdaily_month.csv", sep = "")
+data_wdm <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+
+data_wdm <- setFields(data_wdm)
+data_wdm$Month <- as.factor(data_wdm$Month)
+
+
+data_wdm$Weekday <- factor(data_wdm$Weekday, levels= c("Monday", 
+    "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+
+```
+
+```{r weekdays_per_months, echo = FALSE, message = FALSE, results = TRUE}
+data_client_wdm <- data_wdm %>%
+  select(clientid, currency, Month, Weekday, ValueOfDirectSales, ValueOfOnsiteRecoveries) %>%
+  filter(clientid==params$clientid)%>%
+  arrange(desc(ValueOfOnsiteRecoveries))
+
+head(data_client_wdm,10)
+tail(data_client_wdm,10)
+```
+
+
+```{r - weekdayly per months summary plot}
+ggplot(data_client_wdm, aes(x = Weekday, y = ValueOfOnsiteRecoveries, fill = currency)) +
+  geom_bar(stat='identity')+
+  labs(title = paste("Monthly Onsite Recoveries value for client ", params$clientid))+
+  facet_grid(. ~ Month)+
+  theme(axis.text.x=element_text(angle=45,hjust=1,vjust=0.5))
+
+```
+```{r -percentage value of direct sales per Onsiterecoveries}
+long_data_client_wdm <- data_client_wdm %>% gather(Sales, Value, -clientid,-currency, -Month, -Weekday)
+  
+```
+
+```{r}
+ggplot(long_data_client_wdm, aes(x = Weekday, y = Value, fill = Sales)) +
+  geom_bar(stat='identity')+
+  labs(title = paste("Weekdaily Onsite Recoveries Direct sales comparison for client ", params$clientid))+
+  facet_grid(. ~ Month)+
+  theme(axis.text.x=element_text(angle=45,hjust=1,vjust=0.5))
+```
+
+```{r - daily monthly load csv }
+csvfilepath <- paste("../csv", "/",params$prefix,  "daily.csv", sep = "")
+data_daily <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+
+data_daily <- setFields(data_daily)
+data_daily$Month <- as.factor(data_daily$Month)
+data_daily$Day <- ymd(data_daily$Day)
+
+```
+
+```{r - filter for clientid}
+data_client_daily <- data_daily %>%
+  select( clientid, currency,Month, Day, CountOfDirectSales, CountOfAbandonments, CountOfOnsiteRecoveries)%>%
+  filter(clientid==params$clientid)%>%
+  arrange(desc(Month, Day))
+
+head(data_client_daily,10)
+
+
+```
+
+```{r - counts}
+long_data_client_daily <- data_client_daily %>% gather(Sales, Counts, -clientid,-currency, -Month, -Day)
+```
+
+
+```{r - web clicks counts trend}
+ggplot(long_data_client_daily, aes(x = Day, y = Counts, color=factor(Sales))) +
+  geom_line()+
+  labs(title = paste("Counts of web clicks for client ", params$clientid))+
+ theme(legend.position="right", axis.text=element_text(size = 7))
+
+```
+
+
+
+```{r - web data}
+ggplot(long_data_client_daily, aes(x = Day, y = Counts, color=factor(Sales))) +
+  geom_line()+
+  labs(title = paste("Counts of web clicks for client", params$clientid))+
+  facet_wrap(~ Month, scale = "free")+
+ theme(legend.position="right", axis.text=element_text(size = 7))
+```
+

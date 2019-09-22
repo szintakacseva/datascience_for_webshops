@@ -1,0 +1,149 @@
+---
+title: "Traffic, value analysis "
+output: 
+  pdf_document: default
+  html_document: default
+params:
+  prefix: pref
+  clientid: 23611
+  Year: 2017
+  Month: 2017-06
+  currency: NOK
+  to_divide: 2000
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message =  FALSE, results = TRUE )
+
+```
+
+
+
+```{r load-packages, message=FALSE, echo=FALSE, warning=FALSE}
+if(!require(dplyr)){install.packages("dplyr")}
+if(!require(ggplot2)){install.packages("ggplot2")}
+if(!require(lubridate)){install.packages("lubridate")}
+if(!require(scales)){install.packages("scales")}
+#if(!require(gridExtra)){install.packages("gridExtra")}
+if(!require(cowplot)){install.packages("cowplot")}
+
+```
+
+```{r}
+source('../utils/functions.R')
+#TO DO - set the clientid correctly
+#params$clientid = 18947
+```
+
+## Traffic versus Abandonments Value on WEEKDAYs for clientid = `r params$clientid` 
+
+
+```{r - data-weekdaily_yqm -load-csv}
+csvfilepath <- paste("../csv", "/",params$prefix,  "weekdaily_yqm.csv", sep = "")
+data_wd_yqm <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+data_wd_yqm$clientid <- factor(data_wd_yqm$clientid)
+data_wd_yqm$Year <- factor(data_wd_yqm$Year)
+data_wd_yqm$Quarter <- factor(data_wd_yqm$Quarter)
+
+data_wd_yqm$AbrWeekday <- factor(data_wd_yqm$AbrWeekday, levels= c("Mon", 
+    "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"))
+```
+
+
+
+```{r - yearly}
+data_wd_yqm_client_group_by_wd <- data_wd_yqm %>%
+  select(everything()) %>% 
+  filter(clientid == params$clientid, Year == params$Year) %>%
+  group_by(Weekday, AbrWeekday) %>%
+  summarise(traffic = sum(CountOfAbandonments), value = sum(ValueOfAbandonments))
+```
+
+```{r - quarterly}
+data_wd_yqm_client_group_by_qwd <- data_wd_yqm %>%
+  select(everything()) %>% 
+  filter(clientid == params$clientid, Year == params$Year) %>%
+  group_by(Quarter, Weekday, AbrWeekday) %>%
+  summarise(traffic = sum(CountOfAbandonments), value = sum(ValueOfAbandonments))
+```
+
+
+```{r - monthly}
+data_wd_yqm_client_group_by_mwd <- data_wd_yqm %>%
+  select(everything()) %>% 
+  filter(clientid == params$clientid, Year == params$Year) %>%
+  group_by(Month, Weekday, AbrWeekday) %>%
+  summarise(traffic = sum(CountOfAbandonments), value = sum(ValueOfAbandonments))
+
+```
+
+```{r}
+# First plot
+p1 <- ggplot(data_wd_yqm_client_group_by_wd, aes(x = AbrWeekday, y = value/as.numeric(params$to_divide)))+ 
+  geom_bar(stat='identity', width = 0.3,  aes(color = 'cadetblue3'), fill = "cadetblue3", show.legend=FALSE) +
+  geom_line( aes(x = as.numeric(AbrWeekday), y = traffic, color = 'orange'), size = 1.2) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_colour_identity(guide = guide_legend(override.aes=aes(fill=NA)), labels =       c('Value', 'Traffic')) +
+  labs(x = "", y = "") +
+  theme(legend.title = element_blank(),
+        legend.position="none",
+        axis.text.x=element_text(angle=45,hjust=1,vjust=0.5, size = 6)
+       )
+  
+
+# Second plot
+p2 <- ggplot(data_wd_yqm_client_group_by_qwd, aes(x = AbrWeekday, y = value/as.numeric(params$to_divide))) +
+  geom_bar(stat='identity', width = 0.3,  aes(color = 'cadetblue3'), fill = "cadetblue3", show.legend=FALSE) +
+  geom_line( aes(x = as.numeric(AbrWeekday), y = traffic, color = 'orange'), size = 1.2) +
+  facet_grid(. ~ Quarter) +
+   scale_colour_identity(guide = guide_legend(override.aes=aes(fill=NA)), labels =       c('Value', 'Traffic')) +
+  scale_y_continuous(labels = scales::comma) +
+  labs( x = "", y = "") +
+  theme(legend.title = element_blank(),
+        legend.position="none",
+        axis.text.x=element_text(angle=45,hjust=1,vjust=0.5, size = 6),
+        strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+       strip.background = element_rect(fill="lightblue", colour="black",
+size=.2),
+strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")))
+  
+        
+
+# Third plot
+p3 <- ggplot(data_wd_yqm_client_group_by_mwd, aes(x = AbrWeekday, y = value/as.numeric(params$to_divide)))+
+  geom_bar(stat='identity', width = 0.3,  aes(color = 'cadetblue3'), fill = "cadetblue3", show.legend=FALSE) +
+  geom_line( aes(x = as.numeric(AbrWeekday), y = traffic, color = 'orange'), size = 1.2) +
+  
+  labs(x = "", y = "") +
+  #labs(x = "", y = "") +
+  #facet_grid(. ~ Month) +
+  facet_wrap(~Month, nrow = 2) +
+  scale_colour_identity(guide = guide_legend(override.aes=aes(fill=NA)), labels =       c('Value', 'Traffic')) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(caption = paste('(based on Abandoned Value divided by', params$to_divide, ')')) +
+  theme(legend.title = element_blank(),
+       legend.position = "bottom",
+       axis.text.x=element_text(angle=45,hjust=1,vjust=0.5, size = 6),
+       legend.text = element_text(size = 6),
+       
+       strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+       strip.background = element_rect(fill="lightblue", colour="black",
+size=.2),
+strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")))
+
+```
+
+
+```{r - cowplot}
+#cowplot::plot_grid(p1, p2, p3, ncol = 2, nrow=2)
+#plot_grid(p1, p2, p3 + rremove("x.text"), 
+#          labels = c("A", "B", "C"),
+#          ncol = 2, nrow = 2)
+
+  cowplot::ggdraw() +
+  cowplot::draw_plot(p1, x = 0, y = .5, width = .3, height = .4) +
+  cowplot::draw_plot(p2, x = .3, y = .5, width = .7, height = .4) +
+  cowplot::draw_plot(p3, x = 0, y = 0, width = 1, height = .51) +
+  cowplot::draw_plot_label(label = c("Yearly", "Quarterly", "Monthly"), size = 12, x = c(0, 0.3, 0), y = c(1, 1,.55))
+```
+

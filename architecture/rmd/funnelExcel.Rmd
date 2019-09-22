@@ -1,0 +1,293 @@
+---
+title: "Onsite Funnel"
+output:
+  pdf_document: default
+params:
+  prefix: pref
+  clientid: 65396
+  Year: 2017
+  Month: 2017-12
+  startMonth: 2017-09
+  endMonth: 2017-12
+  currency: NOK
+  to_divide: 2000
+graphics: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, results = TRUE)
+
+```
+
+
+```{r load-packages, message=FALSE, echo=FALSE, warning=FALSE}
+if(!require(dplyr)){install.packages("dplyr")}
+if(!require(ggplot2)){install.packages("ggplot2")}
+if(!require(lubridate)){install.packages("lubridate")}
+if(!require(tidyr)){install.packages("tidyr")}
+if(!require(knitr)){install.packages("knitr")}
+#if(!require(kableExtra)){install.packages("kableExtra")}
+#if(!require(tinytex)){install.packages("tinytex")}
+```
+
+```{r myfunctions}
+source('../utils/functions.R')
+
+```
+
+```{r - load from monthly.csv}
+csvfilepath <- paste("../csv", "/",params$prefix,  "monthly.csv", sep = "")
+df_monthly <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+```
+
+```{r - funel params}
+client <- as.character(params$clientid)
+country <- as.character(params$clientid)
+currency <- as.character(params$currency)
+daterange <- as.character(params$Month)
+service <- as.character("On Site")
+plot.title <- "Onsite Funnel\n\n" # added an extra line here 
+Country <- paste("Country:", country, sep=" ")
+Currency <- paste("Currency", currency, sep= " ")
+Daterange <- paste("Date range:", daterange , sep=" ")
+Service <- paste("Service:", service, sep= " ")
+plot.subtitle <- paste(Country, Currency, Daterange, Service, sep="\n")
+table.title <- paste('Details for the ', params$startMonth, ' - ', params$endMonth )
+y.label <- paste('Session data for the period ', params$endMonth)
+
+cols <- c("#fec44f", "#fc9272", "#a1d99b", "#fee0d2", NA)
+```
+
+`r Country`  
+`r Currency`  
+`r Daterange`  
+`r Service`  
+
+
+```{r - temp}
+df_monthly <- df_monthly  %>%
+  filter(clientid == params$clientid, as.character(Month) >= params$startMonth, as.character(Month)<=params$endMonth )
+ 
+```
+
+
+```{r - monthly data}
+
+df_monthly$Month <- factor(df_monthly$Month)
+
+#details
+df_monthly <- df_monthly %>%
+  mutate(StartedSessions = CountOfDirectSales + CountOfAbandonments)
+df_monthly <- df_monthly %>%
+  mutate(Abandonments = CountOfAbandonments)
+df_monthly <- df_monthly %>%
+  mutate(DirectSales = CountOfDirectSales)
+
+df_monthly <- df_monthly %>%
+  mutate(OnsiteDisplays = CountOfOpen)
+
+df_monthly <- df_monthly %>%
+  mutate(OnsiteClicksToContinue = CountOfPositiveClose)
+df_monthly <- df_monthly %>%
+  mutate(OnsiteClicksNotToContinue = CountOfNegativeClose)
+
+df_monthly <- df_monthly %>%
+  mutate(CompletedPurchases = CountOfOnsiteRecoveries)
+df_monthly <- df_monthly %>%
+  mutate(CompletedPurchases_value = ValueOfOnsiteRecoveries)
+
+#kpi analysis
+df_monthly <- df_monthly %>%
+  mutate(DisplayRate = ifelse(StartedSessions==0 , 0, CountOfOpen/StartedSessions))         
+df_monthly <- df_monthly %>%
+  mutate(ClickToContinueRate = ifelse(CountOfOpen==0 , 0, CountOfPositiveClose/CountOfOpen))
+
+df_monthly <- df_monthly %>%
+  mutate(ClickToConversionRate = ifelse((CountOfPositiveClose + CountOfNegativeClose)==0 , 0, CountOfOnsiteRecoveries/(CountOfPositiveClose + CountOfNegativeClose)))
+
+#main
+df_monthly <- df_monthly %>%
+  mutate(start = StartedSessions)
+df_monthly <- df_monthly %>%
+  mutate(display = OnsiteDisplays) 
+df_monthly <- df_monthly %>%
+  mutate(click = OnsiteClicksToContinue)
+df_monthly <- df_monthly %>%
+  mutate(purchase = CompletedPurchases)
+
+```
+
+
+```{r - prepare data for plot}
+funnel <- gather(df_monthly, step, value, -clientid, -currency, -Month)
+
+
+#mutate(sessiontime = round((data1_base$end_date-data1_base$start_date),2))
+funnel$value <- round((as.numeric(funnel$value)),2)
+
+funnel <- funnel %>%
+mutate(detail = 
+  ifelse(step %in% c('start','display','click','purchase'), 'main',
+  ifelse(step %in% c('StartedSessions, Abandonments','DirectSales'), 'start', 
+  ifelse(step %in% c('OnsiteDisplays'), 'display',     
+  ifelse(step %in% c('OnsiteClicksToContinue','OnsiteClicksNotToContinue'), 'click',
+  ifelse(step %in% c('CompletedPurchases'), 'purchase', 
+  ifelse(step %in% c('DisplayRate', 'ClickToContinueRate', 'ClickToConversionRate'), 'kpi',         
+  'other')))))))
+  
+```
+
+```{r - monthly-data filtered for a month and client}
+funnel_client <- funnel %>%
+  filter(clientid==params$clientid, Month==params$endMonth)
+#head(funnel_client, 10)
+```
+
+```{r - funnel_main data preparation for plotting}
+funnel_main <- funnel_client %>%
+  filter(detail=='main')
+
+funnel_main <- funnel_main %>%
+  mutate(rank = dense_rank(-value))
+
+funnel_main <- funnel_main %>%
+  mutate(rate = round(ifelse(value==0,0, value/sum(value)),2))
+ 
+funnel_main$value <- round(funnel_main$value,0) 
+
+total <- subset(funnel_main, rank==1)$value
+
+
+funnel_main$xpadding <- (total - funnel_main$value) / 2
+
+funnel_main <- gather(funnel_main, variable, values, -clientid, -currency, -Month, -step, -detail, -rank, -rate)
+
+funnel_main$step <- factor(funnel_main$step, levels= c("purchase", "click", "display", "start"))
+
+funnel_main <- funnel_main[order(funnel_main$step, decreasing = T), ]
+
+funnel_main <- funnel_main %>%
+  mutate(variable = ifelse(variable != 'xpadding',paste(step, variable, sep='_'), variable))
+
+funnel_main <- funnel_main[order(funnel_main$variable), ]
+
+```
+
+
+
+
+```{r - funnel_main basic plot}
+p1 <- ggplot(funnel_main, aes(x=step, fill = step)) +
+  geom_bar(aes(y = values),
+           stat='identity', position='stack') +
+  geom_text(data=funnel_main, 
+            aes(y=total/2, label= paste(rate, '%')),
+            color='black') +
+  scale_fill_brewer(type=seq, palette = "Greens")+
+  scale_y_continuous(limits=c(0,total))+
+  coord_flip() +
+  theme(legend.position = 'none', plot.margin = unit(c(0, 0, 0, 0), "cm"),
+        axis.title.y = element_text(size = 8, face = "bold"),
+        panel.grid.major = element_blank()) +
+  labs(x='', y=y.label)
+```
+
+
+```{r - funnel_main plotting}
+#plot.title = element_text(hjust = 0), plot.subtitle = element_text(hjust = 0.5)
+p2 <- ggplot() +
+  
+  geom_bar(data = funnel_main, aes(y = values, x= step,fill=variable),
+           stat='identity', position='stack') +
+  scale_fill_manual(values = cols)+
+  
+  scale_y_continuous(limits=c(0,total))+
+  geom_label(data=funnel_main, 
+            aes(x= step, y=total/2, label= paste(rate, '%')),
+            color='black', hjust = 0, nudge_x = 0.05, size = 4) +
+  geom_text(data= subset(funnel_client, step=="StartedSessions"), 
+            aes( x=4 + 0.4, y=0.8*total, label= paste('Started Sessions:', value)), color='black', size = 3, fontface = "bold") +
+  geom_text(data= subset(funnel_client, step=="Abandonments"), 
+            aes( x=4 + 0.1, y=0.8*total, label= paste('Abandonments:', value)), color='black', size = 3, fontface = "bold") +
+  geom_text(data= subset(funnel_client, step=="DirectSales"),
+            aes( x=4 - 0.2, y=0.8*total, label= paste('Direct sales (without Onsite):', value)), color='black', size = 3, fontface = "bold") +
+ geom_text(data= subset(funnel_client, step=="OnsiteDisplays"),
+            aes( x=3, y=0.8*total, label= paste('OnsiteDisplays:', value)), color='black', size = 3, fontface = "bold") +
+  geom_text(data= subset(funnel_client, step=="OnsiteClicksToContinue"),
+            aes( x=2 +0.2, y=0.8*total, label= paste('OnsiteClicksToContinue:', value)), color='black', size = 3, fontface = "bold") +
+  geom_text(data= subset(funnel_client, step=="OnsiteClicksNotToContinue"),
+            aes( x=2 -0.1, y=0.8*total, label= paste('OnsiteClicksNotToContinue:', value)), color='black', size = 3, fontface = "bold") +
+  geom_text(data= subset(funnel_client, step=="CompletedPurchases"),
+            aes( x=1, y=0.8*total, label= paste('CompletedPurchases:', value)), color='black', size = 3, fontface = "bold") +
+  geom_text(data= subset(funnel_client, step=="DisplayRate"),
+            aes( x=0.9, y=0.2*total, label= paste('DisplayRate:', value)), color='black', size = 3, fontface = "bold") +
+  geom_text(data= subset(funnel_client, step=="ClickToContinueRate"),
+            aes( x=0.6 , y=0.2*total, label= paste('ClickToContinueRate:', value)), color='black', size = 3, fontface = "bold") +
+  geom_text(data= subset(funnel_client, step=="ClickToConversionRate"),
+            aes( x=0.3, y=0.2*total, label= paste('ClickToConversionRate:', value)), color='black', size = 3, fontface = "bold") +
+  geom_text(data= subset(funnel_client, step=="Rate"),
+            aes( x=0, y=4000, label= paste(' ', value)), color='black', size = 3.5)+
+  
+  
+  coord_flip() +
+  theme(legend.position='none', axis.ticks=element_blank(), axis.text.x=element_blank(), 
+ axis.title.x=element_blank(),axis.title.y=element_blank(), plot.margin = unit(c(0, 0, 0, 0), "cm"),
+ panel.grid.major = element_blank()
+ 
+ )
+#+
+ # labs(x='stage', y='volume', caption = "(based on data from ...)")+
+ 
+  #ggtitle(bquote(atop(.(plot.title), atop(.(plot.subtitle), ""))))
+
+```
+
+```{r - combine plots}
+multiplot(p2, p1, cols = 1)
+
+```
+
+
+```{r funel main table format for the date range}
+
+funnel_table <- funnel %>% 
+  spread(Month, value)
+
+steps <- c("StartedSessions", "Abandonments", "DirectSales", "OnsiteDisplays", "OnsiteClicksToContinue", "OnsiteClicksNotToContinue", "CompletedPurchases", "CompletedPurchases_value")
+
+
+funnel_maintable <- funnel_table %>%   
+  select(-clientid, -currency, -detail) %>%
+  filter(step %in% steps) 
+
+funnel_maintable$step <- factor(funnel_maintable$step)
+
+# ordering step on steps
+funnel_maintable <- funnel_maintable[match(steps, funnel_maintable$step),]
+
+names(funnel_maintable)[names(funnel_maintable) == 'step'] <- 'Details'
+
+kable(funnel_maintable, knitr.table.format = "html", row.names = FALSE, caption = table.title)
+```
+
+```{r funel kpi table format for the date range}
+
+kpis <- c("DisplayRate", "ClickToContinueRate", "ClickToConversionRate")
+
+funnel_kpitable <- funnel_table %>%   
+  select(-clientid, -currency, -detail) %>%
+  filter(step %in% kpis) 
+
+funnel_kpitable$step <- factor(funnel_kpitable$step)
+
+# ordering step on steps
+funnel_kpitable <- funnel_kpitable[match(kpis, funnel_kpitable$step),]
+
+#rename a coloumn in a df
+names(funnel_kpitable)[names(funnel_kpitable) == 'step'] <- 'KPI analysis'
+
+kable(funnel_kpitable, knit.table.format = "html", row.names = FALSE)
+```
+
+
+

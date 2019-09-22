@@ -1,0 +1,473 @@
+---
+title: 'RFM analysis'
+params:
+  prefix: pref
+  clientid: 50455
+  Year: 2017
+  Month: 2017-06
+  currency: SEK
+  to_divide: 20000
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+#### Brief RFM description   
+
+Recency-Frequency-Monetary distribution analysis       
+- `Recency` - Nr of days since last order       
+- `Frequency` - Nr of sales          
+- `Monetary`  - Average value of sales         
+
+The analysis is done based on browserid.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message =  FALSE, results = TRUE )
+
+```
+
+```{r load-packages, message=FALSE, echo=FALSE, warning=FALSE}
+if(!require(knitr)){install.packages("knitr")}
+if(!require(dplyr)){install.packages("dplyr")}
+if(!require(ggplot2)){install.packages("ggplot2")}
+if(!require(lubridate)){install.packages("lubridate")}
+if(!require(scales)){install.packages("scales")}
+if(!require(tidyr)){install.packages("tidyr")}
+#if(!require(gridExtra)){install.packages("gridExtra")}
+if(!require(cowplot)){install.packages("cowplot")}
+if(!require(grid)){install.packages("grid")}
+if(!require(cluster)){install.packages("cluster")}
+#if(!require(clValid)){install.packages("clValid")}
+if(!require(tidyverse)){install.packages("tidyverse")}
+if(!require(tibble)){install.packages("tibble")}
+if(!require(stringi)){install.packages("stringi")}
+```
+
+```{r - include functions}
+source('../utils/functions.R')
+```
+
+#RFM for clientid = `r params$clientid` currency = `r params$currency`   
+
+#Distribution of browserids based on frequency, recency and monetary values
+
+
+```{r - load-csv}
+csvfilepath <- paste("../csv", "/",params$prefix,  "kpi.csv", sep = "")
+d_kpi <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+```
+
+
+```{r - global }
+#kable(head(d_kpi, 10))
+segments <- c("Hibernating", "Customers needing attention", "Potential Loyalist", "Loyal customers", "Recent Customers","Champions")
+```
+
+```{r - RFM dataset}
+d_rfm <- select(d_kpi, nrofdayssincelastorder, CountOfSales, AOV, orderquarter)
+d_rfm <- rename(d_rfm, recency = nrofdayssincelastorder, frequency = CountOfSales, monetary = AOV, Q = orderquarter)
+
+```
+
+```{r - recency global constants }
+percents <- c(0, 0.25, 0.5, 0.75, 1)
+title <- "Ratio of sales under given number of days" 
+x <- "% of sales under the given number of days" 
+y <- "Recency" 
+caption <- "(in the middle - count of sales under the given percentage and max nr of days since last order)"
+binwidth = 0.4
+barwidth = 0.8
+y_text_position = 100
+
+```
+
+## Recency
+
+### Standard scales
+
+
+```{r recency standard}
+# 1. plot histogram boxplot summary
+#plot_summary(d_rfm, d_rfm$recency, y, binwidth)
+
+# 2. standard table summary
+d_summary(d_rfm, d_rfm$recency)
+quantile(d_rfm$recency)
+
+# 3. ratio plot for standard percentage
+#ratio_plot(percents, d_rfm$recency, title, x, y, caption, barwidth, y_text_position)
+
+# 4. all summaries in table format for standard percentage
+d_rfm_r <- d_kpi_feature(percents, d_rfm$recency)
+d_rfm_r
+```
+
+
+
+
+### Observed scales
+In case of Recency no need of observed scales
+
+```{r - recency observed}
+percents <- c(0, 0.25, 0.5, 0.7, 0.9, 0.95, 0.99, 0.999, 1)
+# 3.
+#ratio_plot(percents, d_rfm$recency, title, x, y, caption, barwidth, y_text_position)
+# 2. 4.
+#summary(d_rfm$recency)
+#quantile(d_rfm$recency)
+d_rfm_r <-d_kpi_feature(percents, d_rfm$recency)
+d_rfm_r
+```
+
+
+## Frequency
+
+```{r - frequency global constants}
+
+percents <- c(0, 0.25, 0.5, 0.75, 1)
+title <- "Ratio of sales under given number of days" 
+x <- "Nr of Sales" 
+y <- "Frequency" 
+caption <- "(in the middle - )"
+binwidth = 0.4
+barwidth = 0.8
+y_text_position = 4
+```
+
+
+### Standard scales
+
+
+```{r frequency standard}
+
+# 1. plot histogram boxplot summary
+#plot_summary(d_rfm, d_rfm$frequency, y, binwidth)
+
+# 2. standard table summary
+d_summary(d_rfm, d_rfm$frequency)
+quantile(d_rfm$frequency)
+
+# 3. ratio plot for standard percentage
+#ratio_plot(percents, d_rfm$frequency, title, x, y, caption, barwidth, y_text_position)
+
+# 4. all summaries in table format for standard percentage
+d_rfm_f <- d_kpi_feature(percents, d_rfm$frequency)
+d_rfm_f
+```
+
+### Observed scales
+
+```{r - frequency observed}
+percents <- c(0, 0.9, 0.99, 0.999, 1)
+# 3.
+#ratio_plot(percents, d_rfm$frequency, title, x, y, caption, barwidth, y_text_position)
+# 2. 4.
+#summary(d_rfm$frequency)
+#quantile(d_rfm$frequency)
+d_rfm_r <-d_kpi_feature(percents, d_rfm$frequency)
+d_rfm_r
+```
+
+## Monetary
+
+```{r - monetary global constants}
+
+percents <- c(0, 0.25, 0.5, 0.75, 1)
+title <- "Ratio of sales under given values" 
+x <- "Nr of Sales" 
+y <- "Monetary" 
+caption <- "(in the middle - )"
+binwidth = 0.4
+barwidth = 0.8
+y_text_position = 9000
+```
+
+
+### Standard scales
+
+
+```{r monetary standard}
+
+# 1. plot histogram boxplot summary
+#plot_summary(d_rfm, d_rfm$monetary, y, binwidth)
+
+# 2. standard table summary
+d_summary(d_rfm, d_rfm$monetary)
+quantile(d_rfm$monetary)
+
+# 3. ratio plot for standard percentage
+#ratio_plot(percents, d_rfm$monetary, title, x, y, caption, barwidth, y_text_position)
+
+# 4. all summaries in table format for standard percentage
+d_rfm_m <- d_kpi_feature(percents, d_rfm$monetary)
+d_rfm_m
+
+```
+
+### Observed scales
+
+```{r - monetary observed}
+percents<- c(0, 0.25, 0.5, 0.75, 0.9, 0.99, 0.999, 1)
+# 3.
+#ratio_plot(percents, d_rfm$monetary, title, x, y, caption, barwidth, y_text_position)
+# 2. 4.
+summary(d_rfm$monetary)
+quantile(d_rfm$monetary)
+d_rfm_r <-d_kpi_feature(percents, d_rfm$monetary)
+d_rfm_r
+```
+
+
+## Quaterly changes in distribution of customers on recency, frequency and monetary
+
+### Profile(browserid) categories 
+
+Recency categories are:     
+recent (recency_1): NrOfDaysSinceLastOrder < 123 (70 % of sales are less than that value)      
+some_time_ago (recency_2): NrOfDaysSinceLastOrder >= 123 and NrOfDaysSinceLastOrder < 233    
+long_time_ago (recency_3): NrOfDaysSinceLastOrder >= 233         
+
+Frequency categories are:      
+one_time_buyer (frequency_1): NrOfSales = 1 (70 % of sales are less than that value)         
+frequent_buyer (frequency_2): NrOfSales > 1         
+
+
+Monetary categories are:      
+small_amount_spent (monetary_1): AOV (Average Value of Sales) < 85 (25 % of sales are less than that value)     
+medium_amount_spent (monetary_2): AOV >= 85 and  AOV >= 737 (90% of the sales < 600)     
+high_amount_spent (monetary_3): AOV > 737     
+
+```{r - rfm distribution}
+lrecency <- c("recent", "some_time_ago", "long_time_ago")
+lfrequency <- c("frequent_buyer", "one_time_buyer")
+lmonetary <- c("small_amount", "medium_amount", "high_amount")
+
+d_rfm <- d_rfm %>%
+ mutate(recency_distr = 
+  ifelse(recency >= 233, lrecency[3],
+  ifelse(recency <= 123 , lrecency[1],
+  lrecency[2] 
+  )))
+
+d_rfm <- d_rfm %>%
+ mutate(frequency_distr =
+  ifelse(frequency == 1, lfrequency[2],
+  lfrequency[1]
+  ))
+
+d_rfm <- d_rfm %>%
+mutate(monetary_distr = 
+  ifelse(monetary >= 382, lmonetary[3],
+  ifelse(monetary <= 85, lmonetary[1],
+  lmonetary[2] 
+  )))
+```
+
+
+```{r - d_rfm verify 1}
+#d_rfm_summary <- d_rfm  %>%
+  #filter(monetary_distr == 'monetary_3' ) %>%
+#  group_by(frequency_distr) %>%
+#  summarise( count  = n())
+
+#d_rfm_summary
+```
+
+```{r - d_rfm verify 2}
+
+#d_rfm_filter <- d_rfm  %>%
+#  filter(monetary >= 739 )
+  
+
+#d_rfm_filter
+```
+
+
+```{r - rfm distribution plot1}
+# custom order recency, frequency, monetary columns 
+d_rfm$recency_distr <- factor(d_rfm$recency_distr, levels=lrecency)
+d_rfm$frequency_distr <- factor(d_rfm$frequency_distr, levels=lfrequency)
+
+ p_base <- ggplot(d_rfm, aes(x = recency_distr, fill = frequency_distr)) +
+  geom_bar(stat='count', position = "dodge", width = 0.8)+
+  labs( title = "Distribution of customers on monetary, recency and frequency", 
+        x = "", 
+        y = "", 
+        caption = "",
+        fill = "Frequency")+
+  theme(plot.title = element_text(hjust = 0.6),
+      legend.text = element_text(size = 6),
+        axis.text.x=element_text(angle=45,hjust=1,vjust=0.5, size = 9, face = "bold"),
+        
+      strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+      strip.background = element_rect(fill="lightblue", colour="black",size=.1),
+      axis.text.y=element_text(hjust=1,vjust=0.5, size = 8, face = "bold"),
+      strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+      panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted"))
+
+p1<-p_base + facet_wrap(~ monetary_distr, nrow = 1)
+p1
+```
+         
+## Quaterly changes in distribution of customers on recency, frequency and monetary
+
+
+```{r - quaterly distribution}
+p2<-p_base + 
+    #theme(panel.spacing = unit(0.31, "lines"))+
+    facet_wrap(Q ~ monetary_distr, nrow = 2)
+p2
+```
+
+##Distribution of customers on recency, frequency cluster and monetary
+
+
+
+Firstly, a cluster comprised of recency and frequency was done using a clustering algoritm. Then a distribution on monetary values and this cluster is done.
+
+```{r - clustering-kmeans}
+# Set random seed. Don't remove this line.
+set.seed(100)
+
+d_clusters <- select(d_rfm, recency, frequency, monetary)
+d_clusters <- as.data.frame(scale(d_clusters))
+
+#d_clusters$recency<-scale(d_clusters$recency)
+
+clusters <- kmeans(d_clusters, centers = 6, nstart = 12)
+#clusters$cluster
+#clusters$size
+#clusters$centers
+#clusters$betweens/clusters$totss
+#clusters$tot.withinss/clusters$totss
+#dunn_km <- dunn(clusters = clusters$cluster, Data = d_clusters, method = "euclidian")
+#dunn_km
+
+```
+
+
+```{r - naming the segments}
+# lengths(segments) should be equal to cluster number
+df_rank <- naming_segments(clusters, segments, 6)
+#df_rank
+
+```
+
+```{r - clustering - hierarchical}
+## hierarchical clustering
+#Dist <- dist(d_clusters,method="euclidean")
+#clusterObj <- hclust(Dist, method="average")
+#nc <- 5 ## number of clusters      
+#clusters <- cutree(clusterObj,nc)
+#dunn(Dist, cluster)
+
+```
+
+
+```{r - validation of clustering algorithms}
+#clmethods <- c("hierarchical","kmeans")
+#intern <- clValid(d_clusters, nClust = 5,
+#              clMethods = clmethods, validation = "internal", maxitems = 19000, metric #= "euclidean")
+# Summary
+#summary(intern)
+
+```
+
+
+```{r - validation, results = FALSE, echo = FALSE, message=FALSE}
+# Set random seed. Don't remove this line.
+set.seed(100)
+
+# Initialise ratio_ss
+ratio_ss <- rep(0, 10)
+
+# Finish the for-loop
+for (k in 1:7) {
+  
+  # Apply k-means to d_clusters: school_km
+  cluster_km <- kmeans(d_clusters, k, nstart = 20)
+  
+  # Save the ratio between of WSS to TSS in kth element of ratio_ss
+  ratio_ss[k] <- cluster_km$tot.withinss / cluster_km$totss
+  
+}
+
+# Make a scree plot with type "b" and xlab "k"
+#plot(ratio_ss, type = "b", xlab = "k")
+
+```
+## Customer segments
+
+Champions ::	Bought recently, buy often and spend the most!   
+Loyal Customers ::	Spend good money with us often. Responsive to promotions.	    
+Potential Loyalist ::	Recent customers, but spent a good amount and bought more than once.          
+Recent Customers ::	Bought most recently, but not often.	   
+Promising	:: Recent shoppers, but haven’t spent much.    
+Customers Needing Attention ::	Above average recency, frequency and monetary values.May not have bought very recently though.	    
+Hibernating	:: Last purchase was long back, low spenders and low number of orders.     	
+     
+
+```{r - merge clusters to original data adds segment names}
+d_result <- cbind(d_rfm, clusters$cluster)
+#rename last column
+names(d_result)[length(names(d_result))]<-"cluster"
+
+# add segment names from df_rank
+d_result <- add_column(d_result, segment = "")
+d_result$segment <- as.character(d_result$cluster)
+
+for (i in 1:nrow(d_result)) {
+  # match cluster from results and ranking data
+  position <- match(d_result$cluster[i], df_rank$cluster) 
+  d_result$segment[i] <- as.character(df_rank$segment[position])
+}
+
+d_result$segment <- factor(d_result$segment, levels = segments)
+
+d_result_summary <- d_result  %>%
+  select(segment) %>%
+  group_by(segment) %>%
+  summarise( size  = n())
+
+kable(d_result_summary)
+```
+
+
+```{r - view clusters}
+#custom order of segment
+d_result$segment <- factor(d_result$segment, levels= segments)
+
+ggplot(d_result, aes(x = recency, y = frequency, color = segment )) + 
+  geom_point() +
+  labs(title = 'Customer segments', x='Recency', y='Frequency')
+
+```
+
+
+
+```{r - rfm distribution plot based on clustering}
+# custom order recency, frequency, monetary columns 
+#d_rfm$recency_distr <- factor(d_rfm$recency_distr, levels=lrecency)
+#d_rfm$frequency_distr <- factor(d_rfm$frequency_distr, levels=lfrequency)
+
+ p_base_cluster <- ggplot(d_result, aes(x = segment, fill = segment)) +
+  geom_bar(stat='count', position = "dodge", width = 0.8)+
+  labs( title = "Customer segments on monetary values", 
+        x = "", 
+        y = "", 
+        caption = "")+
+  theme(plot.title = element_text(hjust = 0.6),
+      legend.text = element_text(size = 6),
+        axis.text.x=element_text(angle=45,hjust=1,vjust=0.5, size = 9, face = "bold"),
+        
+      strip.text = element_text(face = "bold", size=7,lineheight=5.0),
+      strip.background = element_rect(fill="lightblue", colour="black",size=.1),
+      axis.text.y=element_text(hjust=1,vjust=0.5, size = 8, face = "bold"),
+      strip.text.x = element_text(margin = margin(.05, .05, 0.05, 0.05, "cm")),
+      panel.grid.major = element_line(colour = "gray50", size = 0.1, linetype = "dotted"))
+
+p_base_cluster+facet_wrap(~ monetary_distr, nrow = 1)
+#p_cluster<-p_base_cluster + facet_wrap(~ monetary_distr, nrow = 1)
+#p_cluster
+```

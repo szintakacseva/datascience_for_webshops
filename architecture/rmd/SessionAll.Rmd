@@ -1,0 +1,151 @@
+---
+title: "All Session data"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document: default
+  word_document: default
+params:
+  prefix: pref
+  clientid: 23611
+  Year: 2017
+  Month: 2017-06
+  currency: NOK
+  to_divide: 2000
+graphics: yes  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, echo = FALSE)
+```
+
+## Getting started
+Let's load the packages.
+
+```{r load-packages}
+if(!require(dplyr)){install.packages("dplyr")}
+if(!require(ggplot2)){install.packages("ggplot2")}
+if(!require(lubridate)){install.packages("lubridate")}
+```
+
+Load my functions.
+
+```{r myfunctions}
+source('../utils/functions.R')
+
+```
+
+
+### Load the data in datasets
+Initialise Data
+
+```{r - data-daily-load-csv}
+csvfilepath <- paste("../csv", "/",params$prefix,  "daily.csv", sep = "")
+data_daily <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+data_daily <-setFields(data_daily)
+data_daily$Day <- ymd(data_daily$Day) #extra
+
+```
+
+```{r}
+data_daily <-setFields(data_daily)
+```
+
+
+```{r - daily plot}
+ggplot(data_daily, aes(x = Day, y = ValueOfOnsiteRecoveries, linetype= clientid, col = clientid)) +
+  labs(title = "Daily ValueOfOnsiteRecoveries for individual clients")+
+  geom_line()+
+  geom_smooth()
+```
+
+
+
+
+```{r - data-monthly-load-csv}
+csvfilepath <- paste("../csv", "/",params$prefix,  "monthly.csv", sep = "")
+data_monthly <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+data_monthly <-setFields(data_monthly)
+
+data_monthly$Month <- factor(data_monthly$Month)
+data_monthly <- data_monthly %>%
+  mutate(PercentageOfPositiveClose = ifelse(CountOfPositiveClose+CountOfNegativeClose==0 , 0, CountOfPositiveClose*100/(CountOfPositiveClose+CountOfNegativeClose)))
+
+```
+
+
+```{r - monthly plot}
+ggplot(data_monthly, aes(x = Month, y = ValueOfOnsiteRecoveries)) +
+  geom_bar(stat='identity')+
+  labs(title = "Monthly ValueOfOnsiteRecoveries for individual clients")+
+  facet_grid(. ~ clientid)+
+  theme(axis.text.x=element_text(angle=45,hjust=1,vjust=0.5))
+
+```
+
+
+
+```{r - ValueOfDirectSales plot}
+ggplot(data_monthly, aes(x = Month, y = ValueOfAbandonments)) +
+  geom_bar(stat='identity')+
+  labs(title = "Monthly ValueOfAbandonments for individual clients")+
+  facet_grid(. ~ clientid)+
+  theme(axis.text.x=element_text(angle=45,hjust=1,vjust=0.5))
+
+```
+
+
+
+```{r - PercentageOfPositiveClose}
+ggplot(data_monthly, aes(x = Month, y = PercentageOfPositiveClose)) +
+  geom_bar(stat='identity')+
+  facet_grid(. ~ clientid)+
+  labs(title = "Percentage of positive closes summary for individual clients")+
+  theme(axis.text.x=element_text(angle=45,hjust=1,vjust=0.5))
+
+```
+
+```{r - weekdaily}
+csvfilepath <- paste("../csv", "/",params$prefix,  "weekdaily.csv", sep = "")
+data_weekdaily <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+
+data_weekdaily <- setFields(data_weekdaily)
+data_weekdaily$Weekday <- as.factor(data_weekdaily$Weekday)
+
+data_weekdaily$Weekday <- factor(data_weekdaily$Weekday, levels= c("Monday", 
+    "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+
+data_weekdaily <- data_weekdaily[order(data_weekdaily$Weekday), ]
+
+
+```
+
+```{r - weekdaily plot}
+ggplot(data_weekdaily, aes(x = Weekday, y = ValueOfOnsiteRecoveries, fill = currency)) +
+  geom_bar(stat='identity')+
+  facet_grid(. ~ clientid)+
+  #facet_grid(clientid ~ .)+
+  labs(title = "Weekdays (Monday, Tuesday,..., Sunday) summary for individual clients")+
+  theme(axis.text.x=element_text(angle=45,hjust=1,vjust=0.5))
+```
+
+```{r - load-data-daily}
+csvfilepath <- paste("../csv", "/",params$prefix,  "hourly.csv", sep = "")
+data_hourly <- read.csv(file=csvfilepath, header=TRUE, sep=",")
+data_hourly <- setFields(data_hourly)
+
+
+```
+
+
+```{r - hourly plot}
+ggplot(data_hourly, aes(x = Hour, y = ValueOfOnsiteRecoveries, fill = currency)) +
+  geom_bar(stat='identity')+
+  facet_grid(clientid~.)+
+  labs(title = "Hours (0-24) summary")+
+  xlab("Hours 0,1,2,3....,21,22,23")+
+  theme(axis.text.x=element_text(size = rel(1.1),angle=45,hjust=1,vjust=1, colour = "black"))
+```
+
+
+
