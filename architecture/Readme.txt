@@ -40,11 +40,11 @@ The main R script responsible to run Rmd notebook files. It should be in the wor
 In this version the results of the analysis are html or pdfs having the same name as Rmd files extended with 'prefix'.
 
 Available rmd files are:
-   recheckitClientSectionAnalysis.Rmd
-   recheckitSessionAnalysebyClient.Rmd 
-   recheckitSessionAll.Rmd 
+   ClientSectionAnalysis.Rmd
+   SessionAnalysebyClient.Rmd 
+   SessionAll.Rmd 
    funnelExcel.Rmd
-   recheckit_value_traffic.Rmd
+   value_traffic.Rmd
 
 2.6 csv/*.csv are the input files for the analysis. 
 Required csv files are listed in analyse.ini.
